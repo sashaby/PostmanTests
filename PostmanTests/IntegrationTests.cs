@@ -23,60 +23,94 @@ namespace PostmanTests
         protected IDisposable Server { get; set; }
 
         protected HttpClient HttpClient { get; set; }
-
+        protected Helper helper;
+        
+        
         //This method will be called before each test
         [SetUp]
         public void SetUp()
         {
             HttpClient = new HttpClient();
+            helper = new Helper();
             Console.WriteLine("I'm doing something to setup the system ready for the test");
         }
-
-        private HttpRequestMessage CreateRequest(string url, HttpMethod method)
-        {
-            var request = new HttpRequestMessage();
-            request.RequestUri = new Uri(url);
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            request.Method = method;
-
-            return request;
-        }
-
-        private HttpRequestMessage CreateRequest(string url, HttpMethod method, string jsonString)
-        {
-            HttpRequestMessage request = CreateRequest(url, method);
-            request.Content = new StringContent(jsonString, Encoding.UTF8, "application/json");
-
-            return request;
-        }
+        
 
         [Test]
         public void PostShouldReturn201andContent()
         {
             BlogPost blogpost = new BlogPost { Content = "my new post :)" };
-            string body = String.Empty;
-
+            
             var obj = JsonConvert.SerializeObject(blogpost);
-            HttpRequestMessage request = CreateRequest(FullUrlWithAlias, HttpMethod.Post, obj);
-            HttpResponseMessage response = HttpClient.SendAsync(request).Result;
+            ResponseData resp = helper.ExecutePost(HttpClient, FullUrlWithAlias, obj);
 
-            if (response.IsSuccessStatusCode)
-                {
-                    var stream = response.Content.ReadAsStreamAsync().Result;
-                    StreamReader reader = new StreamReader(stream);
-                    body = reader.ReadToEnd();
-                 }
 
-            Assert.AreEqual(response.StatusCode, HttpStatusCode.Created);
-            Assert.AreEqual(obj, body);
+            Assert.AreEqual(resp.RespMessage.StatusCode, HttpStatusCode.Created);
+            Assert.AreEqual(obj,resp.ContentStream);
         }
+
+        [Test]
+        public void GetShouldReturn200andContent()
+        {
+            BlogPost blogpost = new BlogPost { Content = "my GET post :)" };          
+            string location = String.Empty;
+
+            //create a post
+            var obj = JsonConvert.SerializeObject(blogpost);
+            ResponseData postResp = helper.ExecutePost(HttpClient, FullUrlWithAlias, obj);
+            location = postResp.RespMessage.Headers.Location.ToString();
+
+            //create a get
+            ResponseData getReq = helper.ExecuteGet(HttpClient, location);
+            
+            Assert.AreEqual(getReq.RespMessage.StatusCode, HttpStatusCode.OK);
+            Assert.AreEqual(obj, getReq.ContentStream);
+        }
+
+        [Test]
+        public void PutShouldReturn200andUpdatedContent()
+        {
+            BlogPost blogpost = new BlogPost { Content = "my POST post :)" };
+            string location = String.Empty;
+
+            //create a post
+            var obj = JsonConvert.SerializeObject(blogpost);
+            ResponseData postResp = helper.ExecutePost(HttpClient, FullUrlWithAlias, obj);
+            location = postResp.RespMessage.Headers.Location.ToString();
+
+            //create PUT
+            BlogPost blogpostUpdated = new BlogPost { Content = "my Updated post :)" };
+            var objUpdated = JsonConvert.SerializeObject(blogpostUpdated);
+            ResponseData putReq = helper.ExecutePut(HttpClient, location,objUpdated);
+
+            Assert.AreEqual(putReq.RespMessage.StatusCode, HttpStatusCode.OK);
+            Assert.AreEqual(objUpdated, putReq.ContentStream);
+        }
+
+        [Test]
+        public void DeleteShouldReturn200()
+        {
+            BlogPost blogpost = new BlogPost { Content = "my Delete post :)" };
+            string location = String.Empty;
+
+            //create a post
+            var obj = JsonConvert.SerializeObject(blogpost);
+            ResponseData postResp = helper.ExecutePost(HttpClient, FullUrlWithAlias, obj);
+            location = postResp.RespMessage.Headers.Location.ToString();
+
+            //create a get
+            ResponseData deleteReq = helper.ExecuteDelete(HttpClient, location);
+
+            Assert.AreEqual(deleteReq.RespMessage.StatusCode, HttpStatusCode.OK);
+        }
+
 
         //This method will be called after each test
         [TearDown]
         public void Teardown()
         {
-            HttpClient = null;
-           // Console.WriteLine("I'm doing something to tidy up after the test");
+            HttpClient.Dispose();
+            HttpClient = null;          
         }
 
     }
